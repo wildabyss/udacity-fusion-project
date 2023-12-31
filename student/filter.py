@@ -19,7 +19,7 @@ import sys
 PACKAGE_PARENT = '..'
 SCRIPT_DIR = os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(__file__))))
 sys.path.append(os.path.normpath(os.path.join(SCRIPT_DIR, PACKAGE_PARENT)))
-import misc.params as params 
+import misc.params as params
 
 class Filter:
     '''Kalman filter class'''
@@ -28,10 +28,16 @@ class Filter:
 
     def F(self):
         ############
-        # TODO Step 1: implement and return system matrix F
+        # Step 1: implement and return system matrix F
         ############
 
-        return 0
+        dt = params.dt
+        return np.matrix([[1, 0, 0, dt, 0, 0],
+                          [0, 1, 0, 0, dt, 0],
+                          [0, 0, 1, 0, 0, dt],
+                          [0, 0, 0, 1, 0, 0],
+                          [0, 0, 0, 0, 1, 0],
+                          [0, 0, 0, 0, 0, 1]])
         
         ############
         # END student code
@@ -39,10 +45,22 @@ class Filter:
 
     def Q(self):
         ############
-        # TODO Step 1: implement and return process noise covariance Q
+        # Step 1: implement and return process noise covariance Q
         ############
 
-        return 0
+        q = params.q
+        dt = params.dt
+
+        Qt2 = ((dt**3)/3) * q
+        Qt = ((dt**2)/2) * q
+        Q = dt * q
+
+        return np.matrix([[Qt2, 0, 0, Qt, 0, 0],
+                          [0, Qt2, 0, 0, Qt, 0],
+                          [0, 0, Qt2, 0, 0, Qt],
+                          [Qt, 0, 0, Q, 0, 0],
+                          [0, Qt, 0, 0, Q, 0],
+                          [0, 0, Qt, 0, 0, Q]])
         
         ############
         # END student code
@@ -50,10 +68,15 @@ class Filter:
 
     def predict(self, track):
         ############
-        # TODO Step 1: predict state x and estimation error covariance P to next timestep, save x and P in track
+        # Step 1: predict state x and estimation error covariance P to next timestep, save x and P in track
         ############
 
-        pass
+        F = self.F()
+        x = F*track.x # state prediction
+        P = F*track.P*F.transpose() + self.Q() # covariance prediction
+
+        track.set_x(x)
+        track.set_P(P)
         
         ############
         # END student code
@@ -61,8 +84,21 @@ class Filter:
 
     def update(self, track, meas):
         ############
-        # TODO Step 1: update state x and covariance P with associated measurement, save x and P in track
+        # Step 1: update state x and covariance P with associated measurement, save x and P in track
         ############
+
+        x = track.x
+        H = meas.sensor.get_H(x)
+        P = track.P
+        gamma = self.gamma(track, meas) # residual
+        S = self.S(track, meas, H) # covariance of residual
+        K = P*H.transpose()*np.linalg.inv(S) # Kalman gain
+        x = x + K*gamma # state update
+        I = np.identity(params.dim_state)
+        P = (I - K*H) * P # covariance update
+
+        track.set_x(x)
+        track.set_P(P)
         
         ############
         # END student code
@@ -71,10 +107,13 @@ class Filter:
     
     def gamma(self, track, meas):
         ############
-        # TODO Step 1: calculate and return residual gamma
+        # Step 1: calculate and return residual gamma
         ############
 
-        return 0
+        hx = meas.sensor.get_hx(track.x)
+        z = meas.z
+
+        return z - hx
         
         ############
         # END student code
@@ -82,10 +121,13 @@ class Filter:
 
     def S(self, track, meas, H):
         ############
-        # TODO Step 1: calculate and return covariance of residual S
+        # Step 1: calculate and return covariance of residual S
         ############
 
-        return 0
+        P = track.P
+        R = meas.R
+
+        return H*P*H.transpose() + R
         
         ############
         # END student code

@@ -29,26 +29,26 @@ class Track:
         M_rot = meas.sensor.sens_to_veh[0:3, 0:3] # rotation matrix from sensor to vehicle coordinates
         
         ############
-        # TODO Step 2: initialization:
+        # Step 2: initialization:
         # - replace fixed track initialization values by initialization of x and P based on 
         # unassigned measurement transformed from sensor to vehicle coordinates
         # - initialize track state and track score with appropriate values
         ############
 
-        self.x = np.matrix([[49.53980697],
-                        [ 3.41006279],
-                        [ 0.91790581],
-                        [ 0.        ],
-                        [ 0.        ],
-                        [ 0.        ]])
-        self.P = np.matrix([[9.0e-02, 0.0e+00, 0.0e+00, 0.0e+00, 0.0e+00, 0.0e+00],
-                        [0.0e+00, 9.0e-02, 0.0e+00, 0.0e+00, 0.0e+00, 0.0e+00],
-                        [0.0e+00, 0.0e+00, 6.4e-03, 0.0e+00, 0.0e+00, 0.0e+00],
-                        [0.0e+00, 0.0e+00, 0.0e+00, 2.5e+03, 0.0e+00, 0.0e+00],
-                        [0.0e+00, 0.0e+00, 0.0e+00, 0.0e+00, 2.5e+03, 0.0e+00],
-                        [0.0e+00, 0.0e+00, 0.0e+00, 0.0e+00, 0.0e+00, 2.5e+01]])
-        self.state = 'confirmed'
-        self.score = 0
+        sens_to_veh = meas.sensor.sens_to_veh
+
+        self.x = np.zeros((params.dim_state, 1))
+        pos_corr = sens_to_veh*np.vstack((meas.z, [1]))
+        self.x[0:3] = pos_corr[0:3,0]
+
+        self.P = np.zeros((params.dim_state, params.dim_state))
+        self.P[0:3, 0:3] = sens_to_veh[0:3,0:3]*meas.R*sens_to_veh[0:3,0:3].transpose()
+        self.P[3,3] = params.sigma_p44**2
+        self.P[4,4] = params.sigma_p55**2
+        self.P[5,5] = params.sigma_p66**2
+
+        self.state = 'initialized'
+        self.score = 1/params.window
         
         ############
         # END student code
@@ -94,7 +94,7 @@ class Trackmanagement:
         
     def manage_tracks(self, unassigned_tracks, unassigned_meas, meas_list):  
         ############
-        # TODO Step 2: implement track management:
+        # Step 2: implement track management:
         # - decrease the track score for unassigned tracks
         # - delete tracks if the score is too low or P is too big (check params.py for parameters that might be helpful, but
         # feel free to define your own parameters)
@@ -106,10 +106,16 @@ class Trackmanagement:
             # check visibility    
             if meas_list: # if not empty
                 if meas_list[0].sensor.in_fov(track.x):
-                    # your code goes here
-                    pass 
+                    track.score = max([track.score-1/params.window, 0])
 
-        # delete old tracks   
+        # delete old tracks
+        track_list_copy = list(self.track_list)
+        for track in track_list_copy:
+            if track.P[0,0] > params.max_P or track.P[1,1] > params.max_P or track.P[2,2] > params.max_P or \
+                track.state == 'confirmed' and track.score < params.delete_threshold or \
+                track.state != 'confirmed' and track.score < params.delete_threshold_unconf:
+
+                self.delete_track(track)
 
         ############
         # END student code
@@ -135,12 +141,17 @@ class Trackmanagement:
         
     def handle_updated_track(self, track):      
         ############
-        # TODO Step 2: implement track management for updated tracks:
+        # Step 2: implement track management for updated tracks:
         # - increase track score
         # - set track state to 'tentative' or 'confirmed'
         ############
 
-        pass
+        track.score = min([track.score+1/params.window, 1])
+
+        if track.score > params.confirmed_threshold:
+            track.state = 'confirmed'
+        else:
+            track.state = 'tentative'
         
         ############
         # END student code
