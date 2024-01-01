@@ -51,7 +51,7 @@ class Association:
             for j in range(M):
                 meas = meas_list[j]
                 dist = self.MHD(track, meas, KF)
-                if self.gating(dist):
+                if self.gating(dist, len(meas.z)):
                     self.association_matrix[i,j] = dist
         
         ############
@@ -92,12 +92,12 @@ class Association:
         ############ 
         return update_track, update_meas     
 
-    def gating(self, MHD): 
+    def gating(self, MHD, dim_z): 
         ############
         # Step 3: return True if measurement lies inside gate, otherwise False
         ############
         
-        limit = chi2.ppf(params.gating_threshold, df=2)
+        limit = chi2.ppf(params.gating_threshold, df=dim_z)
         return MHD < limit
         
         ############
